@@ -1,27 +1,108 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PORT="${CONDUCTOR_PORT:?This script must be run by Conductor (CONDUCTOR_PORT not set)}"
-WORKSPACE="${CONDUCTOR_WORKSPACE_NAME:-conductor}"
+# Worktree setup hook.
+#
+# Invoked by:
+#   - Conductor (via conductor.json "setup")
+#   - Humans running it directly inside a worktree
+#
+# Accepts WORKTREE_* env vars (preferred) or CONDUCTOR_* (legacy). Auto-
+# generates any value not provided.
 
-echo "Setting up Conductor workspace: $WORKSPACE (base port: $PORT)"
+find_free_port_block() {
+  # Probe for 6 consecutive free TCP ports, base aligned to /10 in [20000,60000).
+  local base i ok
+  for _ in {1..50}; do
+    base=$(( 20000 + (RANDOM % 4000) * 10 ))
+    ok=1
+    for i in 0 1 2 3 4 5; do
+      if lsof -iTCP:"$((base + i))" -sTCP:LISTEN >/dev/null 2>&1; then
+        ok=0
+        break
+      fi
+    done
+    if [ "$ok" = 1 ]; then
+      echo "$base"
+      return 0
+    fi
+  done
+  echo "find_free_port_block: could not find 6 consecutive free ports in [20000,60000)" >&2
+  return 1
+}
 
-# Copy .env files from examples if they don't exist
-[ -f ./.env ] || cp ./.env-example ./.env
-[ -f ./server/.env ] || cp ./server/.env-example ./server/.env
-[ -f ./client/.env ] || cp ./client/.env-example ./client/.env
+PORT="${WORKTREE_PORT:-${CONDUCTOR_PORT:-}}"
+if [ -z "$PORT" ]; then
+  PORT="$(find_free_port_block)"
+fi
 
-# Run port setup (detects CONDUCTOR_PORT automatically)
-./scripts/set-ports.sh
+WORKSPACE="${WORKTREE_NAME:-${CONDUCTOR_WORKSPACE_NAME:-$(basename "$PWD")}}"
 
-# Build Docker images
+ROOT="${WORKTREE_ROOT_PATH:-${CONDUCTOR_ROOT_PATH:-}}"
+if [ -z "$ROOT" ]; then
+  ROOT="$(git worktree list --porcelain | awk '/^worktree/{print $2; exit}')"
+fi
+
+if [ "$(cd "$ROOT" && pwd -P)" = "$(pwd -P)" ]; then
+  echo "error: source repo resolved to the current directory — run this script from inside a worktree, not the main checkout" >&2
+  exit 1
+fi
+
+echo "Setting up worktree: $WORKSPACE"
+echo "  base port:   $PORT"
+echo "  source repo: $ROOT"
+
+CLIENT_PORT=$((PORT))
+CLIENT_HMR_PORT=$((PORT + 1))
+SERVER_PORT=$((PORT + 2))
+SERVER_DEBUG_PORT=$((PORT + 3))
+WORKER_PORT=$((PORT + 4))
+POSTGRES_PORT=$((PORT + 5))
+
+cat > .env <<EOF
+COMPOSE_PROJECT_NAME=alloy-${WORKSPACE}
+PORT_OFFSET=worktree
+POSTGRES_PORT=${POSTGRES_PORT}
+SERVER_PORT=${SERVER_PORT}
+SERVER_DEBUG_PORT=${SERVER_DEBUG_PORT}
+WORKER_PORT=${WORKER_PORT}
+CLIENT_PORT=${CLIENT_PORT}
+CLIENT_HMR_PORT=${CLIENT_HMR_PORT}
+EOF
+
+echo "Wrote .env (COMPOSE_PROJECT_NAME=alloy-${WORKSPACE})"
+
+for subdir in server client; do
+  if [ -f "$ROOT/$subdir/.env" ]; then
+    cp "$ROOT/$subdir/.env" "./$subdir/.env"
+    echo "Copied $subdir/.env from $ROOT"
+  elif [ -f "./$subdir/.env-example" ]; then
+    cp "./$subdir/.env-example" "./$subdir/.env"
+    echo "Copied $subdir/.env from .env-example"
+  fi
+done
+
+if [ -f "./server/.env" ]; then
+  perl -i -pe "s|^PORT=[0-9]*|PORT=${SERVER_PORT}|" ./server/.env
+  perl -i -pe "s|^VITE_SERVER_BASE_URL=http://localhost:[0-9]*|VITE_SERVER_BASE_URL=http://localhost:${SERVER_PORT}|" ./server/.env
+  perl -i -pe "s|^VITE_CLIENT_BASE_URL=http://localhost:[0-9]*|VITE_CLIENT_BASE_URL=http://localhost:${CLIENT_PORT}|" ./server/.env
+  echo "Patched server/.env (PORT=${SERVER_PORT})"
+fi
+
+if [ -f "./client/.env" ]; then
+  perl -i -pe "s|^VITE_SERVER_BASE_URL=http://localhost:[0-9]*|VITE_SERVER_BASE_URL=http://localhost:${SERVER_PORT}|" ./client/.env
+  perl -i -pe "s|^VITE_CLIENT_BASE_URL=http://localhost:[0-9]*|VITE_CLIENT_BASE_URL=http://localhost:${CLIENT_PORT}|" ./client/.env
+  perl -i -pe "s|^VITE_HMR_PORT=[0-9]*|VITE_HMR_PORT=${CLIENT_HMR_PORT}|" ./client/.env
+  echo "Patched client/.env"
+fi
+
+docker compose down -v --remove-orphans || true
 docker compose build
-
-# Start all services
 docker compose up -d
 
 echo ""
-echo "Workspace ready! Port mapping:"
-echo "  Server:   http://localhost:$((PORT + 2))"
-echo "  Client:   http://localhost:${PORT}"
-echo "  Postgres: localhost:$((PORT + 5))"
+echo "Worktree ready. Port mapping:"
+echo "  Server:   http://localhost:${SERVER_PORT}"
+echo "  Client:   http://localhost:${CLIENT_PORT}"
+echo "  Worker:   http://localhost:${WORKER_PORT}"
+echo "  Postgres: localhost:${POSTGRES_PORT}"
