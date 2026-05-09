@@ -7,7 +7,7 @@ services:
     region: ohio
     plan: starter
     startCommand: node dist/server.js
-    preDeployCommand: node dist/scripts/checkEnv.js && npx sequelize-cli --options-path=.sequelizerc db:migrate
+    preDeployCommand: release
     autoDeploy: false
     healthCheckPath: /v1/healthCheck
     envVars:
@@ -37,7 +37,7 @@ services:
     region: ohio
     plan: starter
     startCommand: node dist/server.js
-    preDeployCommand: node dist/scripts/checkEnv.js && npx sequelize-cli --options-path=.sequelizerc db:migrate
+    preDeployCommand: release
     autoDeploy: false
     healthCheckPath: /v1/healthCheck
     envVars:
