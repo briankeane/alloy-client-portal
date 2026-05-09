@@ -13,7 +13,7 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - fromGroup: staging
+      - fromGroup: alloy-staging
 
   - type: worker
     name: staging-worker
@@ -27,7 +27,7 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - fromGroup: staging
+      - fromGroup: alloy-staging
 
   - type: web
     name: production-server
@@ -43,7 +43,7 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - fromGroup: production
+      - fromGroup: alloy-production
 
   - type: worker
     name: production-worker
@@ -57,4 +57,4 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - fromGroup: production
+      - fromGroup: alloy-production
