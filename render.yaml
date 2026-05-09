@@ -3,7 +3,7 @@ services:
     name: staging-server
     runtime: image
     image:
-      url: ghcr.io/YOUR_ORG/YOUR_REPO:staging
+      url: ghcr.io/briankeane/alloy-client-portal:staging
     region: ohio
     plan: starter
     startCommand: node dist/server.js
@@ -13,13 +13,13 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - fromGroup: staging
+      - fromGroup: alloy-staging
 
   - type: worker
     name: staging-worker
     runtime: image
     image:
-      url: ghcr.io/YOUR_ORG/YOUR_REPO:staging
+      url: ghcr.io/briankeane/alloy-client-portal:staging
     region: ohio
     plan: starter
     startCommand: node dist/worker.js
@@ -27,13 +27,13 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - fromGroup: staging
+      - fromGroup: alloy-staging
 
   - type: web
     name: production-server
     runtime: image
     image:
-      url: ghcr.io/YOUR_ORG/YOUR_REPO:production
+      url: ghcr.io/briankeane/alloy-client-portal:production
     region: ohio
     plan: starter
     startCommand: node dist/server.js
@@ -43,13 +43,13 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - fromGroup: production
+      - fromGroup: alloy-production
 
   - type: worker
     name: production-worker
     runtime: image
     image:
-      url: ghcr.io/YOUR_ORG/YOUR_REPO:production
+      url: ghcr.io/briankeane/alloy-client-portal:production
     region: ohio
     plan: starter
     startCommand: node dist/worker.js
@@ -57,4 +57,4 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - fromGroup: production
+      - fromGroup: alloy-production
