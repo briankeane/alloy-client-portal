@@ -13,7 +13,7 @@ export default function SignupPage() {
   const [submitting, setSubmitting] = useState(false);
 
   if (isAuthenticated) {
-    navigate('/dashboard', { replace: true });
+    navigate('/portal', { replace: true });
     return null;
   }
 
@@ -23,7 +23,7 @@ export default function SignupPage() {
     setSubmitting(true);
     try {
       await signup({ email, password, firstName, lastName });
-      navigate('/dashboard', { replace: true });
+      navigate('/portal', { replace: true });
     } catch (err: unknown) {
       const message =
         err && typeof err === 'object' && 'response' in err
